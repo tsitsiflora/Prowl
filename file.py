@@ -9,8 +9,8 @@ import json
 import os
 import sys
 import dns.resolver
-reload(sys)
-sys.setdefaultencoding('utf-8')
+#reload(sys)
+#sys.setdefaultencoding('utf-8')
 
 parser = argparse.ArgumentParser(description="Scrape LinkedIn for company staff members")
 parser.add_argument("-c", "--company", help="Company to search for")
@@ -29,6 +29,13 @@ names = []
 blocks = []
 
 
+class bcolors:
+    OKGREEN = '\033[92m'
+    WARNING = '\033[31m'
+    FAIL = '\033[33m'
+
+
+#add a proxy 
 def proxy():
 	global proxies
 	proxy = args.proxy
@@ -37,27 +44,24 @@ def proxy():
 			proxies = {'https' : proxy}
 		else:
 			proxies = {'http': proxy}
-class bcolors:
-    OKGREEN = '\033[92m'
-    WARNING = '\033[31m'
-    FAIL = '\033[33m'
-
+   
+#this function checks if a domain name is registered/known
 def certscanner(emailformat):
 	dnsresolver = dns.resolver.Resolver()
 	dnsresolver.nameservers = ['8.8.8.8']
 	domain = emailformat.split("@")[1]
 	company = domain.split('.', 1)[0]
 	companyname = domain.split(".")[0]
-	target = open("Output/"+companyname+"/domains.csv", 'w+')
-	target.write("Domain, IP"+"\r\n")
-	print bcolors.OKGREEN + "\nSUBDOMAINS"
-	print "-"*40
-	html = requests.get("https://crt.sh/?q=%."+domain+"&exclude=expired").text
+	target = open("Output/" + companyname + "/domains.csv", 'w+')
+	target.write("Domain, IP" + "\r\n")
+	print(bcolors.OKGREEN + "\nSUBDOMAINS")
+	print("-"*40)
+	html = requests.get("https://crt.sh/?q=%." + domain + "&exclude=expired").text
 	soup = BeautifulSoup(html, "lxml")
 	for link in soup.findAll("a"):
 		if "?id=" in link.get('href'): 
 			id = link.get('href')
-			cert = requests.get("https://crt.sh/"+id).text
+			cert = requests.get("https://crt.sh/" + id).text
 			myregex = r'(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6}'
 			domains = re.findall(myregex, cert)
 			for i in domains:
@@ -68,13 +72,14 @@ def certscanner(emailformat):
 						found.append(i)
 						try:
 							public_ip = dnsresolver.query(i)[0]
-							print bcolors.FAIL + i, public_ip
+							print(bcolors.FAIL + i, public_ip)
 							target.write(i + "," + str(public_ip) + "\r\n")
 						except:
 							public_ip = ""
-							print bcolors.WARNING + i
+							print(bcolors.WARNING + i)
 							target.write(i + "\r\n")
 
+#creating folders to save de
 def formatout(companyname,emailformat):
 	domain = emailformat.split("@")[1]
 	companyname = domain.split(".")[0]
@@ -85,64 +90,110 @@ def formatout(companyname,emailformat):
 		target = open("Output/"+companyname+"/accounts.csv", 'w')
 		target.write("First Name, Last Name, Email, Title, Profile, Breach"+"\r\n")
 		target = open("Output/"+companyname+"/domains.csv", 'w')
-	print "_"*50+"\n"
-
-
+	print("_"*50+"\n")
+ 
+ 
 
 def bing(comp, emailformat):
-	print "\n" + bcolors.OKGREEN + "BING"
-	print "-"*125
+	print("\n" + bcolors.OKGREEN + "BING")
+	print("-"*125)
 	for i in range(0,40,1):
 		url = 'http://www.bing.com/search?q=site:linkedin.com+works+at+'+comp+'&first='+str(i)
-                res = requests.get(url)
-                soup = BeautifulSoup(res.text, "lxml")
-                div = ' '
-                for tag in soup.findAll("li" , {"class" : "b_algo"}):
-                        if re.search("linkedin.com/in/", str(tag)):
-                                        if re.search("Top", tag.getText()):
-                                                pass
-                                        else:
-                                                if tag.getText() not in blocks:
-                                                        title = tag.find("h2");
-                                                        cut = title.getText().split(div,2)[:2]
-                                                        name = cut[0]+" "+cut[1]
-                                                        time.sleep(0.1)
-                                                        blocks.append(tag.getText())
-                                                        if name not in names:
-                                                                names.append(name)
-                                                                linkedinurl = tag.find("cite").getText()
-			                             		try:
-									fulljob = tag.find("li").text
-                                                               		mangle_emails(name, comp, emailformat, fulljob, linkedinurl)
-								except:
-									fulljob = ""
-									mangle_emails(name, comp, emailformat, fulljob, linkedinurl)
+		res = requests.get(url)
+		soup = BeautifulSoup(res.text, "lxml")
+		div = ' '
+		for tag in soup.findAll("li" , {"class" : "b_algo"}):
+			if re.search("linkedin.com/in/", str(tag)):
+				if re.search("Top", tag.getText()):
+					pass
+				else:
+					if tag.getText() not in blocks:
+						title = tag.find("h2");
+						cut = title.getText().split(div,2)[:2]
+						name = cut[0]+" "+cut[1]
+						time.sleep(0.1)
+						blocks.append(tag.getText())
+						if name not in names:
+							names.append(name)
+							linkedinurl = tag.find("cite").getText()
+							try:
+								fulljob = tag.find("li").text
+								mangle_emails(name, comp, emailformat, fulljob, linkedinurl)
+							except:
+								fulljob = ""
+								mangle_emails(name, comp, emailformat, fulljob, linkedinurl)
+        
+        
+def mangle_emails(name, company, emailformat, fulljob, linkpof):
+    name = name.replace(",", "")
+    domain = emailformat.split("@")[1]
+    companyname = domain.split(".")[0]
+    target = open("Output/" + companyname + "/accounts.csv", 'a')
+    fn = string.split(name)[0]
+    fi = fn[0]
+	ln = string.split(name)[1]
+	li = ln[0]
+	email = emailformat.replace('<fn>', fn).replace(
+		'<ln>', ln).replace('<fi>', fi).replace('<li>', li).lower()
+	email2 = filter(lambda x: x in string.printable, email)
+	headers = {
+		'User-Agent': 'Prowl'
+	}
+
+	if email2 not in emails:
+			try:
+				time.sleep(1.5)
+				emails.append(email2)
+				fulljob = fulljob.replace(",", " ")
+				req = requests.get("https://haveibeenpwned.com/api/breachedaccount/" +
+								email2+"?truncateResponse=true", headers=headers)
+				breach = str(req.content)
+				breach = breach.replace(",", " ")
+				try:
+					target.write(fn+","+ln+","+email2+","+fulljob +
+								","+linkpof+","+breach+"\r\n")
+					print("{0:30} {1:40} {2:40}".format(name, email2, fulljob[0:40]))
+				except:
+					try:
+						print("{0:30} {1:40}".format(name, email2))
+						target.write(fn+","+ln+","+email2+",N/A,"+linkpof+","+breach+"\r\n")
+					except:
+							pass
+			except:
+				emails.append(email2)
+				try:
+					target.write(fn+"|"+ln+"|N/A|"+linkpof+"\r\n")
+				except:
+					pass
+	else:
+		pass
+
 
 def search(comp,emailformat):
 	depth = int(args.depth)
-	print "\n"
-	print bcolors.OKGREEN + "YAHOO"
-	print "-"*125
+	print("\n")
+	print(bcolors.OKGREEN + "YAHOO")
+	print("-"*125)
 	for i in range(1,depth):
 		i = str(i)
 		try:
 			r = requests.get('https://uk.search.yahoo.com/search;_ylt=A9mSs3IiEdVYsUMAY6ZLBQx.;_ylu=X3oDMTEzdm1nNDAwBGNvbG8DaXIyBHBvcwMxBHZ0aWQDBHNlYwNwYWdpbmF0aW9u?p="at+{0}"+site%3Alinkedin.com&pz=10&ei=UTF-8&fr=yfp-t-UK317&b={1}0&pz=10&xargs=0'.format(comp,i), proxies=proxies)
 		except:
-			print "Proxy Not Working"
-			print "Exiting...."
+			print("Proxy Not Working")
+			print("Exiting....")
 			sys.exit(1)
 
 		soup = BeautifulSoup(r.text, "lxml")
-        	for tag in soup.findAll("div", {"class" : "dd algo algo-sr Sr"}):
+		for tag in soup.findAll("div", {"class" : "dd algo algo-sr Sr"}):
 			if re.search("linkedin.com/in/", str(tag)):
 				if re.search("Top", tag.getText()):
 					pass
 				else:
 					if tag.getText() not in found:
 						title = tag.find("h3", {"class" : "title"});
-                                                div = " "
-                                                cut = title.getText().split(div,2)[:2]
-                                                name = cut[0]+" "+cut[1]
+						div = " "
+						cut = title.getText().split(div,2)[:2]
+						name = cut[0]+" "+cut[1]
 						if name not in names:
 							jobtext = tag.find("p", {"class" : "lh-16"});
 							job = jobtext.getText()
@@ -157,60 +208,20 @@ def search(comp,emailformat):
 								fulljob = job
 								mangle_emails(name, comp, emailformat, fulljob, linkpof)
 
-def mangle_emails(name, company, emailformat, fulljob, linkpof):
-	name = name.replace(",", "")
-	domain = emailformat.split("@")[1]
-        companyname = domain.split(".")[0]
-	target = open("Output/"+companyname+"/accounts.csv", 'a')
-        fn = string.split(name)[0]
-        fi = fn[0]
-        ln = string.split(name)[1]
-        li = ln[0]
-        email = emailformat.replace('<fn>',fn).replace('<ln>',ln).replace('<fi>',fi).replace('<li>',li).lower()
-        email2 = filter(lambda x: x in string.printable, email)
-	headers = {
-	'User-Agent': 'Prowl'
-	}
-
-	if email2 not in emails:
-       		try:
-			time.sleep(1.5)
-			emails.append(email2)
-			fulljob = fulljob.replace(",", " ")
-			req = requests.get("https://haveibeenpwned.com/api/breachedaccount/"+email2+"?truncateResponse=true", headers=headers)
-			breach = str(req.content)
-			breach = breach.replace(",", " ")
-			try:
-				target.write(fn+","+ln+","+email2+","+fulljob+","+linkpof+","+breach+"\r\n")
-				print "{0:30} {1:40} {2:40}".format(name, email2, fulljob[0:40])
-			except:
-				try:
-					print "{0:30} {1:40}".format(name, email2)
-					target.write(fn+","+ln+","+email2+",N/A,"+linkpof+","+breach+"\r\n")
-				except:
-					pass
-		except:
-			emails.append(email2)
-			try:
-				target.write(fn+"|"+ln+"|N/A|"+linkpof+"\r\n")
-			except:
-				pass
-	else:
-		pass
 
 def jobs(comp, emailformat):
 	domain = emailformat.split("@")[1]
-        companyname = domain.split(".")[0]
+	companyname = domain.split(".")[0]
 	target = open("Output/"+companyname+"/jobs.csv", 'w')
-        target.write("Job Title"+"\r\n")
-	print "\n"
-	print bcolors.OKGREEN + "AVAILABLE JOBS"
-	print "-"*40
+	target.write("Job Title"+"\r\n")
+	print("\n")
+	print(bcolors.OKGREEN + "AVAILABLE JOBS")
+	print("-"*40)
 	r = requests.get("https://www.indeed.co.uk/jobs?as_and='at+{0}'&as_phr=&as_any=&as_not=&as_ttl=&as_cmp=&jt=all&st=&salary=&radius=25&l=&fromage=any&limit=30&sort=&psf=advsrch".format(comp))
 	soup = BeautifulSoup(r.text, "lxml")
 	for tag in soup.findAll("h2", {"class" : "jobtitle"}):
 		job = str(tag.getText().encode('utf-8')).strip()
-		print bcolors.FAIL + job
+		print(bcolors.FAIL + job)
 		target.write(job + "\r\n")
 		pass
 
@@ -220,8 +231,8 @@ if args.proxy:
 if args.subdomains is True:
 	if args.emailformat:
 		domain = args.emailformat.split("@")[1]
-        	companyname = domain.split(".")[0]
-                print "Output folder: "+companyname
+		companyname = domain.split(".")[0]
+		print("Output folder: " + companyname)
 		formatout(args.company, args.emailformat)
 		certscanner(args.emailformat)
 else:
@@ -244,7 +255,7 @@ else:
 
 if args.company:
 	if args.emailformat:
-			bing(args.company, args.emailformat)
-			search(args.company, args.emailformat)
+		bing(args.company, args.emailformat)
+		search(args.company, args.emailformat)
 else:
-        parser.print_usage()
+	parser.print_usage()
